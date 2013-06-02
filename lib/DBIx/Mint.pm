@@ -1,44 +1,53 @@
 package DBIx::Mint;
 
+use DBIx::Connector;
 use DBIx::Mint::Schema;
 use SQL::Abstract::More;
 use Carp;
 use Moo;
 with 'MooX::Singleton';
 
-our $VERSION = 0.01;
+our $VERSION = 0.02;
 
-has abstract => (
-    is      => 'rw',
-    default => sub {
-        SQL::Abstract::More->new();
-    },
-);
-
-has dbh    => ( is => 'rw', predicate => 1 );
-before dbh => sub {
-    my ($self, $dbh) = @_;
-    croak "Please feed DBIx::Mint with a database connection"
-        unless $dbh || $self->has_dbh;
-};
+has abstract  => ( is => 'rw', default => sub { SQL::Abstract::More->new(); } );
+has connector => ( is => 'rw', predicate => 1 );
 
 sub new {
     croak "You should call DBIx::Mint->instance instead of new";
 }
 
+sub dbh {
+    my $self = shift;
+    return  $self->has_connector ? $self->connector->dbh
+        : croak 'Please feed DBIx::Mint with a database connection';
+};
+
+sub connect {
+    my $class = shift;
+    my $self  = $class->instance;        
+    $self->connector( DBIx::Connector->new(@_) );
+    $self->connector->mode('ping');
+    $self->dbh->{HandleError} = sub { croak $_[0] };
+    return $self;
+}
+
 sub do_transaction {
     my ($self, $trans) = @_;
-    $self->dbh->begin_work if $self->dbh->{AutoCommit};
-    eval {
-        &$trans;
-        $self->dbh->commit;
-    };
+
+    my $auto = $self->dbh->{AutoCommit};
+    $self->dbh->{AutoCommit} = 0 if $auto;
+
+    my @output;    
+    eval { @output = $self->connector->txn( $trans ) };
+
     if ($@) {
-        carp "Transaction failed: $@\n";
+        carp "Transaction failed: $@";
         $self->dbh->rollback;
+        $self->dbh->{AutoCommit} = 1 if $auto;
         return undef;
     }
-    return 1;
+    $self->dbh->{AutoCommit} = 1 if $auto;
+    return @output ? @output : 1;    
 }
 
 sub schema {
@@ -51,11 +60,11 @@ sub schema {
 
 =head1 NAME
 
-DBIx::Mint - Yet another light-weight ORM
+DBIx::Mint - A light-weight ORM for Perl
 
 =head1 VERSION
 
-This documentation refers to DBIx::Mint 0.01
+This documentation refers to DBIx::Mint 0.02
 
 =head1 SYNOPSIS
 
@@ -78,14 +87,14 @@ Nearby (probably in a module of its own), you define the schema for your classes
      class      => 'Bloodbowl::Team',
      table      => 'teams',
      pk         => 'id',
-     auto_pk => 1,
+     auto_pk    => 1,
  );
  
  $schema->add_class(
      class      => 'Bloodbowl::Player',
      table      => 'players',
      pk         => 'id',
-     auto_pk => 1,
+     auto_pk    => 1,
  );
  
  # This is a one-to-many relationship
@@ -100,11 +109,9 @@ And in your your scripts:
  
  use DBIx::Mint;
  use My::Schema;
- use DBI;
  
  # Connect to the database
- my $dbh  = DBI->connect(...);
- my $mint = DBIx::Mint->instance( dbh => $dbh );
+ DBIx::Mint->connect( $dsn, $user, $passwd, { dbi => 'options'} );
  
  my $team    = Bloodbowl::Team->find(1);
  my @players = $team->get_players;
@@ -119,9 +126,9 @@ And in your your scripts:
     { status => 'suspended' }, 
     { password => 'blocked' });
  
-To define a schema and to learn about data modification methods, look into L<DBIx::Mint::Schema> and L<DBIx::Mint::Table>.
+To define a schema and to learn about data modification methods, look into L<DBIx::Mint::Schema> and L<DBIx::Mint::Table>. Declaring the schema allows you to modify the data.
 
-Without a schema you can only fetch data. No data modification methods are offered. ResultSet objects build database queries and fetch the resulting records:
+If you only need to query the database, no schema is needed. ResultSet objects build database queries and fetch the resulting records:
   
  my $rs = DBIx::Mint::ResultSet->new( table => 'coaches' );
  
@@ -131,11 +138,11 @@ Without a schema you can only fetch data. No data modification methods are offer
    ->inner_join( 'players', { 'teams.id' => 'team'  })
    ->all;
 
-See the docs for L<DBIx::Mint::ResultSet> for all the methods you can use to retrieve data. Internally, class relationships are declared in terms of ResultSet objects.
+See the docs for L<DBIx::Mint::ResultSet> for all the methods you can use to retrieve data. 
  
 =head1 DESCRIPTION
 
-DBIx::Mint is yet another object-relational mapping module for Perl. Its goals are:
+DBIx::Mint is an object-relational mapping module for Perl. Its goals are:
 
 =over
 
@@ -155,11 +162,9 @@ On the other side of the equation, it has some strong restrictions:
 
 =over
 
-=item * It supports a single database handle
+=item * It supports a single database handle and a single database schema. It uses a Moo::Singleton to keep everything together.
 
 =item * While it uses roles (through Role::Tiny/Moo::Role), it does put a lot of methods on your namespace. See L<DBIx::Mint::Table> for the list. L<DBIx::Mint::ResultSet> does not mess with your namespace at all.
-
-=item * It expects you to create the database connection and it makes no effort to keep it alive for long-running processes.
 
 =back
 
@@ -173,7 +178,7 @@ The documentation is split into four parts:
 
 =over
 
-=item * This general view, which documents the umbrella class DBIx::Mint. This class defines a singleton that simply holds the L<SQL::Abstract::More> object and the database handle and implements transactions. 
+=item * This general view, which documents the umbrella class DBIx::Mint. This class defines a singleton that simply holds the L<SQL::Abstract::More> object and the database connection and implements transactions.
 
 =item * L<DBIx::Mint::Schema> documents relationships and the mapping between classes and database tables. Learn how to specify table names, primary keys and how to create associations between classes.
 
@@ -183,25 +188,30 @@ The documentation is split into four parts:
 
 =back
 
-=head1 SUBROUTINES/METHODS IMPLEMENTED BY DBIx::Mint
+=head1 SUBROUTINES/METHODS IMPLEMENTED BY L<DBIx::Mint>
 
 This module offers a just a few starting methods:
 
 =head2 instance
 
-Returns an instance of DBIx::Mint. It is a singleton, so you can access it from anywhere. To make it useful you should give it a database handle.
+Returns an instance of L<DBIx::Mint>. It is a singleton, so you can access it from anywhere and it will be the same. To make it useful you should tell it how to connect to the database.
+
+=head2 connect
+
+This is a class method that receives your database connection instructions and instantiates the L<DBIx::Connector> object:
+
+ DBIx::Mint->connect('dbi:SQLite:dbname=t/bloodbowl.db', '', '',
+        { AutoCommit => 1, RaiseError => 1 });
+
+The database connection will be available while the singleton is alive.
+
+=head2 connector
+
+This accessor will return the underlying L<DBIx::Connector> object.
 
 =head2 dbh
 
-This is the accessor/mutator for the database handle. To give DBIx::Mint a database connection, do:
-
- # Connect to the database
- my $dbh  = DBI->connect(...);
- my $mint = DBIx::Mint->instance( dbh => $dbh );
- 
-or:
-
- $mint->dbh( $dbh );
+This method will simply return the database handle from L<DBIx::Connector>, which is guaranteed to be alive.
  
 =head2 abstract
 
@@ -210,7 +220,7 @@ This is the accessor/mutator for the L<SQL::Abstract::More> subjacent object. Yo
  my $sql = SQL::Abstract::More->new(...);
  $mint->abstract($sql);
  
-You can also use the default object, which is created with the defaults of SQL::Abstract::More.
+You can also use the default object, which is created with the defaults of L<SQL::Abstract::More>.
 
 =head2 schema
 
@@ -238,6 +248,8 @@ This distribution depends on the following external, non-core modules:
 
 =item DBI
 
+=item DBIx::Connector
+
 =item List::MoreUtils
 
 =item Clone
@@ -252,7 +264,7 @@ Please report problems to the author. Patches are welcome. Tests are welcome als
 
 =head1 ACKNOWLEDGEMENTS
 
-This module is heavily based on L<DBIx::Lite>, by Alessandro Ranellucci. The benefits of that module over DBIx::Mint are that it does provide accessors if you choose to bless your result objects and it does allow for record modifications without using a schema. The main benefits of this module over DBIx::Lite is that target classes can be based on Moo or have their own accessors defined elsewhere, which avoids clashing. Relationships are more flexible, and you are allowed to have more than one relationship between two tables.
+The ResultSet class was inspired by L<DBIx::Lite>, by Alessandro Ranellucci.
 
 =head1 AUTHOR
 

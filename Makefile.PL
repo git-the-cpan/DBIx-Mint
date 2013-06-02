@@ -12,11 +12,17 @@ WriteMakefile(
         'MooX::Singleton'     =>   0,
         'SQL::Abstract::More' =>   0,
         'List::MoreUtils'     =>   0,
+        'DBIx::Connector'     =>   0,
         'Clone'               =>   0,
     },
     BUILD_REQUIRES   => {
         'DBD::SQLite'         =>   0,
         'Test::Warn'          =>   0,
+    },
+    META_MERGE     => {
+        resources  => {
+            repository => 'https://github.com/jfraire/DBIx-Mint',
+        },
     },
     ABSTRACT_FROM  => 'lib/DBIx/Mint.pm',
     AUTHOR         => 'Julio Fraire <julio.fraire@gmail.com>',

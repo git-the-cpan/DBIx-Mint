@@ -1,5 +1,5 @@
 {
-   "abstract" : "Yet another light-weight ORM",
+   "abstract" : "A light-weight ORM for Perl",
    "author" : [
       "Julio Fraire <julio.fraire@gmail.com>"
    ],
@@ -35,6 +35,7 @@
          "requires" : {
             "Clone" : "0",
             "DBI" : "0",
+            "DBIx::Connector" : "0",
             "List::MoreUtils" : "0",
             "Moo" : "1",
             "MooX::Singleton" : "0",
@@ -43,5 +44,10 @@
       }
    },
    "release_status" : "stable",
-   "version" : "0.01"
+   "resources" : {
+      "repository" : {
+         "url" : "https://github.com/jfraire/DBIx-Mint"
+      }
+   },
+   "version" : "0.02"
 }
