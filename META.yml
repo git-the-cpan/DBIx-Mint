@@ -1,9 +1,9 @@
 ---
-abstract: 'A light-weight ORM for Perl'
+abstract: 'A mostly class-based ORM for Perl'
 author:
   - 'Julio Fraire <julio.fraire@gmail.com>'
 build_requires:
-  DBD::SQLite: 0
+  DBD::SQLite: 1.39
   Test::Warn: 0
 configure_requires:
   ExtUtils::MakeMaker: 0
@@ -21,11 +21,11 @@ no_index:
 requires:
   Clone: 0
   DBI: 0
-  DBIx::Connector: 0
+  DBIx::Connector: 0.53
   List::MoreUtils: 0
   Moo: 1
   MooX::Singleton: 0
   SQL::Abstract::More: 0
 resources:
   repository: https://github.com/jfraire/DBIx-Mint
-version: 0.03
+version: 0.04
