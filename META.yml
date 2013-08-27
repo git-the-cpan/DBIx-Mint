@@ -24,8 +24,7 @@ requires:
   DBIx::Connector: 0.53
   List::MoreUtils: 0
   Moo: 1
-  MooX::Singleton: 0
   SQL::Abstract::More: 0
 resources:
   repository: https://github.com/jfraire/DBIx-Mint
-version: 0.04
+version: 0.05
