@@ -27,4 +27,4 @@ requires:
   SQL::Abstract::More: 0
 resources:
   repository: https://github.com/jfraire/DBIx-Mint
-version: 0.05
+version: 0.06
