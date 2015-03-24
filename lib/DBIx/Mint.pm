@@ -7,7 +7,7 @@ use SQL::Abstract::More;
 use Carp;
 use Moo;
 
-our $VERSION = 0.07;
+our $VERSION = 0.071;
 
 has name       => ( is => 'ro', default   => sub { '_DEFAULT' } );
 has abstract   => ( is => 'rw', default   => sub { SQL::Abstract::More->new(); } );
@@ -84,7 +84,7 @@ DBIx::Mint - A mostly class-based ORM for Perl
 
 =head1 VERSION
 
-This documentation refers to DBIx::Mint 0.07
+This documentation refers to DBIx::Mint 0.071
 
 =head1 SYNOPSIS
 
